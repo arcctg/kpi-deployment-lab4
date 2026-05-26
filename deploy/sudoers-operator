@@ -1,0 +1,10 @@
+operator ALL=(ALL) NOPASSWD: \
+    /usr/bin/systemctl start mywebapp.socket, \
+    /usr/bin/systemctl stop mywebapp.socket, \
+    /usr/bin/systemctl restart mywebapp.socket, \
+    /usr/bin/systemctl start mywebapp.service, \
+    /usr/bin/systemctl stop mywebapp.service, \
+    /usr/bin/systemctl restart mywebapp.service, \
+    /usr/bin/systemctl status mywebapp.service, \
+    /usr/bin/systemctl status mywebapp.socket, \
+    /usr/bin/systemctl reload nginx

@@ -1,0 +1,16 @@
+[Unit]
+Description=MyWebApp Notes Service
+After=network.target postgresql.service
+Requires=mywebapp.socket
+
+[Service]
+Type=simple
+User=app
+Group=app
+ExecStartPre=/usr/local/bin/mywebapp -migrate
+ExecStart=/usr/local/bin/mywebapp
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
