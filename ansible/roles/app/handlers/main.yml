@@ -1,0 +1,21 @@
+---
+- name: Build mywebapp binary
+  ansible.builtin.command:
+    cmd: go build -o {{ app_binary_path }} .
+    chdir: /opt/mywebapp/src
+  environment:
+    GOPATH: /tmp/gopath
+    HOME: /root
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Restart mywebapp
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: restarted
+    daemon_reload: true
+  loop:
+    - mywebapp.socket
+    - mywebapp.service

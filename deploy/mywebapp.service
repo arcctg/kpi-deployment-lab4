@@ -1,6 +1,7 @@
 [Unit]
 Description=MyWebApp Notes Service
-After=network.target postgresql.service
+After=network-online.target
+Wants=network-online.target
 Requires=mywebapp.socket
 
 [Service]
