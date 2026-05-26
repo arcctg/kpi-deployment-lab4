@@ -1,9 +1,0 @@
-.git
-.gitignore
-.vagrant
-docs
-app/app
-*.md
-LICENSE
-Vagrantfile
-provision.py
