@@ -1,0 +1,37 @@
+---
+- name: Install common packages
+  ansible.builtin.apt:
+    name:
+      - python3
+      - sudo
+      - openssh-server
+    state: present
+    update_cache: true
+
+- name: Ensure teacher group exists
+  ansible.builtin.group:
+    name: teacher
+    state: present
+
+- name: Create teacher user
+  ansible.builtin.user:
+    name: teacher
+    group: teacher
+    groups: sudo
+    append: true
+    shell: /bin/bash
+    password: "{{ default_user_password | password_hash('sha512') }}"
+    update_password: always
+
+- name: Enable SSH password authentication
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/99-lab4-password-auth.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      PasswordAuthentication yes
+  notify: Restart ssh
+
+- name: Flush handlers
+  ansible.builtin.meta: flush_handlers

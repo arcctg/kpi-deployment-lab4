@@ -1,0 +1,2 @@
+postgresql_version: "15"
+postgresql_conf_dir: "/etc/postgresql/{{ postgresql_version }}/main"

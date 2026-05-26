@@ -1,0 +1,16 @@
+---
+gradebook_number: 9
+app_port: 5000
+db_port: 5432
+db_name: mywebapp
+db_user: mywebapp
+db_password: mywebapp
+default_user_password: "12345678"
+app_src_dir: "{{ playbook_dir }}/../app"
+deploy_src_dir: "{{ playbook_dir }}/../deploy"
+app_binary_path: /usr/local/bin/mywebapp
+app_config_dir: /etc/mywebapp
+app_config_path: /etc/mywebapp/config.yaml
+worker_ip: "{{ hostvars[groups['workers'][0]].ansible_host }}"
+db_ip: "{{ hostvars[groups['db'][0]].ansible_host }}"
+db_host: "{{ hostvars[groups['db'][0]].ansible_host }}"
