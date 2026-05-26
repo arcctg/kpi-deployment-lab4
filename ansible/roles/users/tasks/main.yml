@@ -1,0 +1,38 @@
+---
+- name: Ensure operator group exists
+  ansible.builtin.group:
+    name: operator
+    state: present
+
+- name: Create operator user
+  ansible.builtin.user:
+    name: operator
+    group: operator
+    shell: /bin/bash
+    password: "{{ default_user_password | password_hash('sha512') }}"
+    update_password: always
+
+- name: Deploy operator sudoers rules
+  ansible.builtin.copy:
+    src: "{{ deploy_src_dir }}/sudoers-operator"
+    dest: /etc/sudoers.d/operator
+    owner: root
+    group: root
+    mode: "0440"
+    validate: "visudo -cf %s"
+
+- name: Create student home directory for gradebook
+  ansible.builtin.file:
+    path: /home/student
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create gradebook file
+  ansible.builtin.copy:
+    dest: /home/student/gradebook
+    owner: root
+    group: root
+    mode: "0644"
+    content: "{{ gradebook_number }}\n"
