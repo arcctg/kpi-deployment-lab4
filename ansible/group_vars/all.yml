@@ -6,6 +6,7 @@ db_name: mywebapp
 db_user: mywebapp
 db_password: mywebapp
 default_user_password: "12345678"
+lab4_password_hash: "{{ default_user_password | password_hash('sha512', 'lab4fixedsalt') }}"
 app_src_dir: "{{ playbook_dir }}/../app"
 deploy_src_dir: "{{ playbook_dir }}/../deploy"
 app_binary_path: /usr/local/bin/mywebapp
