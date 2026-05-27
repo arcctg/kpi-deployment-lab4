@@ -5,6 +5,7 @@
       - python3
       - sudo
       - openssh-server
+      - acl
     state: present
     update_cache: true
 
