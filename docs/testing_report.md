@@ -9,6 +9,19 @@ All tests run after deploying the two-VM Lab 4 stack with Terraform and Ansible.
 
 > **Note:** Replace `<WORKER_IP>` and `<DB_IP>` with values from `terraform output` in the `terraform/` directory. Example values below use `192.168.150.215` and `192.168.150.230`.
 
+### Acceptance criteria
+
+Lab 4 acceptance criteria from [docs/task/lab4_task.md](docs/task/lab4_task.md):
+
+| Criterion | Implementation | Tests | Status |
+|---|---|---|---|
+| Automation | `terraform apply`, one `ansible-playbook` | 0.1-0.4 |  ✅ |
+| Idempotency | fixed password hash, declarative Ansible modules | 1.1 |  ✅ |
+| Declarative config | no `command`/`shell` modules in roles | code review |  ✅ |
+| Distribution | app on worker, PostgreSQL on db, UFW + `pg_hba` | 7.1, 8.x, 12.x |  ✅ |
+| Users | cloud-init + Ansible roles (`ansible`, `teacher`, `operator`) | 2.x, 3.x, 4.x |  ✅ |
+| Health checks | `/health/alive`, `/health/ready` (DB ping), nginx blocks `/health/*` | 9.1-9.3, 10.x |  ✅ |
+
 ---
 
 ### 0.1 Initialize Terraform
@@ -106,11 +119,9 @@ ansible-playbook playbook.yml
 
 ```
 PLAY RECAP *********************************************************************
-lab4-db                    : ok=16   changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
-lab4-worker                : ok=26   changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+lab4-db                    : ok=16   changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+lab4-worker                : ok=24   changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
 ```
-
-> **Note:** Core service tasks remain idempotent. The `teacher` and `operator` user tasks may report `changed=1` due to Ansible user-module attribute drift; all service configuration tasks show `ok`.
 
 ---
 
@@ -726,6 +737,51 @@ Content-Type: text/plain; charset=utf-8
 ```
 
 > **Note:** This confirms the worker VM can reach PostgreSQL on the DB VM.
+
+### 9.3 `GET /health/ready` — returns 500 when PostgreSQL is stopped
+
+On `lab4-db` (SSH as `ansible`):
+
+```bash
+sudo systemctl stop postgresql
+```
+
+On `lab4-worker` (SSH as `ansible`):
+
+```bash
+curl -s -D - http://127.0.0.1:5000/health/ready -o /dev/null
+```
+
+**Expected output:**
+
+```
+HTTP/1.1 500 Internal Server Error
+Content-Type: text/plain; charset=utf-8
+X-Content-Type-Options: nosniff
+Date: Wed, 27 May 2026 12:24:18 GMT
+Content-Length: 45
+```
+
+Restore PostgreSQL on `lab4-db`:
+
+```bash
+sudo systemctl start postgresql
+```
+
+On `lab4-worker`, verify readiness again:
+
+```bash
+curl -s -D - http://127.0.0.1:5000/health/ready -o /dev/null
+```
+
+**Expected output:**
+
+```
+HTTP/1.1 200 OK
+Date: Wed, 27 May 2026 12:23:43 GMT
+Content-Length: 2
+Content-Type: text/plain; charset=utf-8
+```
 
 ---
 

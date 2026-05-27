@@ -36,11 +36,13 @@ VM IPs are assigned dynamically by libvirt DHCP. Read them from `terraform outpu
 
 ## Technical challenges
 
-The lab was initially attempted on Windows + VirtualBox, but this setup was abandoned due to critical limitations: the provider cannot natively mount official `qcow2` cloud images, silently ignores `cloud-init` configuration (breaking automated SSH/user setup), and constantly times out waiting for IP addresses because it relies on pre-installed Guest Additions.
+The lab was initially attempted on Windows + VirtualBox, but this setup failed. VirtualBox cannot natively run official `qcow2` cloud images, completely ignores `cloud-init` configuration (which breaks automated user and SSH key creation), and constantly times out because it cannot detect virtual machine IP addresses.
 
-After moving to Ubuntu 24.04 + libvirt/KVM, issues remained: QEMU disk permissions, no DHCP leases on the `default` network, and Terraform timeouts waiting for VM IPs.
+To fix this, the entire environment was moved to the cloud. A Google cloud platform N2 virtual machine was provisioned to serve as a control node, as it natively supports nested virtualization on Ubuntu.
 
-The working setup uses a dedicated `lab4-network` NAT (`192.168.150.0/24`), disk clones via `base_volume_id`, a single `cloud_init.cfg` without custom `network_config`, and `dmacvicar/libvirt` v0.7.1.
+Even on Ubuntu 24.04 + libvirt/KVM inside cloud, a few issues appeared: QEMU disk permission errors, a total lack of DHCP leases on the standard `default` network, and terraform timeouts while waiting for VM IPs.
+
+The final working setup was achieved by creating a dedicated `lab4-network` with NAT, cloning VM disks via `base_volume_id`, using a single `cloud_init.cfg` without custom network configs and downgrading the provider to `dmacvicar/libvirt` v0.7.1.
 
 ## Web Application
 
@@ -75,6 +77,7 @@ Health endpoints (`/health/*`) are blocked by nginx and return 404 to external c
 | [Terraform](https://developer.hashicorp.com/terraform/install) | >= 1.3.0 |
 | [Ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html) | Configuration management |
 | [Git](https://git-scm.com/install) | Clone the repository |
+| [Go](https://go.dev/dl/) | Build `mywebapp` via `scripts/build-mywebapp.sh` |
 | [xh](https://github.com/ducaale/xh) | HTTP client for API testing |
 | SSH key pair | Used by cloud-init for the `ansible` user |
 
@@ -118,10 +121,20 @@ terraform output
 
 Save the output values. You will need `<WORKER_IP>` and `<DB_IP>` for testing.
 
-### 4. Configure services (Ansible)
+### 4. Build application binary
+
+From the repository root:
 
 ```bash
-cd ../ansible
+./scripts/build-mywebapp.sh
+```
+
+Requires Go on the host. The script writes `ansible/roles/app/files/mywebapp` (linux/amd64).
+
+### 5. Configure services (Ansible)
+
+```bash
+cd ansible
 chmod +x inventory.py
 ansible-galaxy collection install -r requirements.yml
 ansible-playbook playbook.yml
@@ -133,9 +146,9 @@ Re-run to verify idempotency:
 ansible-playbook playbook.yml
 ```
 
-Expected: `changed=0` on both hosts (minor user-module drift may report `changed=1` on some runs).
+Expected: `changed=0` on both hosts.
 
-### 5. Tear down
+### 6. Tear down
 
 ```bash
 cd ../terraform
@@ -172,6 +185,19 @@ The `operator` user can manage mywebapp and reload nginx via passwordless sudo. 
 
 Detailed testing report: [docs/testing_report.md](docs/testing_report.md)
 
+### Acceptance criteria
+
+Lab 4 acceptance criteria from [docs/task/lab4_task.md](docs/task/lab4_task.md):
+
+| Criterion | Implementation | Tests | Status |
+|---|---|---|---|
+| Automation | `terraform apply`, one `ansible-playbook` | 0.1-0.4 |  ✅ |
+| Idempotency | fixed password hash, declarative Ansible modules | 1.1 |  ✅ |
+| Declarative config | no `command`/`shell` modules in roles | code review |  ✅ |
+| Distribution | app on worker, PostgreSQL on db, UFW + `pg_hba` | 7.1, 8.x, 12.x |  ✅ |
+| Users | cloud-init + Ansible roles (`ansible`, `teacher`, `operator`) | 2.x, 3.x, 4.x |  ✅ |
+| Health checks | `/health/alive`, `/health/ready` (DB ping), nginx blocks `/health/*` | 9.1-9.3, 10.x |  ✅ |
+
 ### Requirements Coverage
 
 | Requirement | Test | Result |
@@ -187,6 +213,7 @@ Detailed testing report: [docs/testing_report.md](docs/testing_report.md)
 | Config files with dynamic DB IP | 7.1-7.5 | ✅ |
 | PostgreSQL listens on DB VM IP, restricted access | 8.1-8.3 | ✅ |
 | Health endpoints accessible inside worker VM | 9.1-9.2 | ✅ |
+| Health ready fails when DB is down | 9.3 | ✅ |
 | Health endpoints blocked by nginx | 10.1-10.2 | ✅ |
 | API via nginx from host (CRUD, content negotiation) | 11.1-11.7 | ✅ |
 | DB accessible from worker, blocked from host | 12.1-12.4 | ✅ |
