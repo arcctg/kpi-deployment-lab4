@@ -1,11 +1,4 @@
 ---
-- name: Install build dependencies
-  ansible.builtin.apt:
-    name:
-      - golang
-    state: present
-    update_cache: true
-
 - name: Create application system user
   ansible.builtin.user:
     name: app
@@ -13,24 +6,14 @@
     shell: /usr/sbin/nologin
     create_home: false
 
-- name: Create application source directory
-  ansible.builtin.file:
-    path: /opt/mywebapp/src
-    state: directory
+- name: Install mywebapp binary
+  ansible.builtin.copy:
+    src: mywebapp
+    dest: "{{ app_binary_path }}"
     owner: root
     group: root
     mode: "0755"
-
-- name: Copy application source
-  ansible.builtin.copy:
-    src: "{{ app_src_dir }}/"
-    dest: /opt/mywebapp/src/
-    owner: root
-    group: root
-    mode: preserve
-  notify:
-    - Build mywebapp binary
-    - Restart mywebapp
+  notify: Restart mywebapp
 
 - name: Ensure application config directory exists
   ansible.builtin.file:
@@ -71,7 +54,7 @@
     - Reload systemd
     - Restart mywebapp
 
-- name: Apply pending build and unit changes
+- name: Apply pending unit changes
   ansible.builtin.meta: flush_handlers
 
 - name: Enable and start mywebapp socket
