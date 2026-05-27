@@ -1,8 +1,9 @@
 # Copy to terraform.tfvars and adjust paths for your environment.
-debian_image         = "images/debian-12-genericcloud-amd64.qcow2"
-ssh_public_key_path  = "~/.ssh/id_rsa.pub"
-hostonly_interface   = "vboxnet0"
-worker_name          = "lab4-worker"
-db_name              = "lab4-db"
-vm_cpus              = 1
-vm_memory            = 1024
+base_image_path     = "~/lab4/images/debian-12-genericcloud-amd64.qcow2"
+ssh_public_key_path = "~/.ssh/id_ed25519.pub"
+worker_name         = "lab4-worker"
+db_name             = "lab4-db"
+vm_cpus             = 1
+vm_memory           = 1024
+network_name        = "lab4-network"
+network_cidr        = "192.168.150.0/24"

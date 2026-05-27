@@ -2,51 +2,83 @@ terraform {
   required_version = ">= 1.3.0"
 
   required_providers {
-    virtualbox = {
-      source  = "terra-farm/virtualbox"
-      version = "0.2.2"
+    libvirt = {
+      source  = "dmacvicar/libvirt"
+      version = "0.7.1"
     }
   }
 }
 
-provider "virtualbox" {
-  checksum = false
+provider "libvirt" {
+  uri = var.libvirt_uri
 }
 
-locals {
-  cloud_init_common = {
+resource "libvirt_network" "lab4_net" {
+  name      = var.network_name
+  mode      = "nat"
+  addresses = [var.network_cidr]
+  autostart = true
+
+  dns {
+    enabled    = true
+    local_only = true
+  }
+}
+
+resource "libvirt_volume" "base_image" {
+  name   = "debian-12-base"
+  pool   = var.storage_pool_name
+  source = var.base_image_path
+  format = "qcow2"
+}
+
+resource "libvirt_volume" "disks" {
+  for_each = {
+    worker = var.worker_name
+    db     = var.db_name
+  }
+
+  name           = "${each.value}.qcow2"
+  pool           = var.storage_pool_name
+  base_volume_id = libvirt_volume.base_image.id
+  format         = "qcow2"
+  size           = var.vm_disk_size
+}
+
+resource "libvirt_cloudinit_disk" "init" {
+  for_each = toset([var.worker_name, var.db_name])
+
+  name = "${each.value}-init.iso"
+  user_data = templatefile("${path.module}/cloud_init.cfg", {
+    hostname       = each.value
     ssh_public_key = trimspace(file(var.ssh_public_key_path))
-  }
+  })
+  meta_data = ""
 }
 
-resource "virtualbox_vm" "worker" {
-  name   = var.worker_name
-  image  = var.debian_image
-  cpus   = var.vm_cpus
-  memory = "${var.vm_memory} mib"
-
-  network_adapter {
-    type           = "hostonly"
-    host_interface = var.hostonly_interface
+resource "libvirt_domain" "vms" {
+  for_each = {
+    worker = { name = var.worker_name, mem = var.vm_memory, cpu = var.vm_cpus }
+    db     = { name = var.db_name, mem = var.vm_memory, cpu = var.vm_cpus }
   }
 
-  user_data = templatefile("${path.module}/cloud-init/worker.cfg", merge(local.cloud_init_common, {
-    hostname = var.worker_name
-  }))
-}
+  name     = each.value.name
+  memory   = each.value.mem
+  vcpu     = each.value.cpu
+  cloudinit = libvirt_cloudinit_disk.init[each.value.name].id
 
-resource "virtualbox_vm" "db" {
-  name   = var.db_name
-  image  = var.debian_image
-  cpus   = var.vm_cpus
-  memory = "${var.vm_memory} mib"
-
-  network_adapter {
-    type           = "hostonly"
-    host_interface = var.hostonly_interface
+  network_interface {
+    network_id     = libvirt_network.lab4_net.id
+    wait_for_lease = true
   }
 
-  user_data = templatefile("${path.module}/cloud-init/db.cfg", merge(local.cloud_init_common, {
-    hostname = var.db_name
-  }))
+  disk {
+    volume_id = libvirt_volume.disks[each.key].id
+  }
+
+  console {
+    type        = "pty"
+    target_port = "0"
+    target_type = "serial"
+  }
 }
