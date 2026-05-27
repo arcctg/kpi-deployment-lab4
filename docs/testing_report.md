@@ -2,22 +2,18 @@
 
 All tests run after deploying the two-VM Lab 4 stack with Terraform and Ansible.
 
-- **Host machine:** Windows, PowerShell
-- **Worker VM:** `lab4-worker` — nginx, mywebapp
-- **Database VM:** `lab4-db` — PostgreSQL
+- **Host machine:** Ubuntu 24.04 LTS, bash
+- **Worker VM:** `lab4-worker` nginx, mywebapp
+- **Database VM:** `lab4-db` PostgreSQL
 - **API client:** [xh](https://github.com/ducaale/xh)
 
-> **Note:** Replace `<WORKER_IP>` and `<DB_IP>` with values from `terraform output` in the `terraform/` directory. Example values below use `192.168.56.101` and `192.168.56.102`.
+> **Note:** Replace `<WORKER_IP>` and `<DB_IP>` with values from `terraform output` in the `terraform/` directory. Example values below use `192.168.150.215` and `192.168.150.230`.
 
 ---
 
-## 0. Provisioning
-
-Verify that infrastructure provisioning and configuration go as planned.
-
 ### 0.1 Initialize Terraform
 
-```powershell
+```bash
 cd terraform
 terraform init
 ```
@@ -25,51 +21,59 @@ terraform init
 **Expected output:**
 
 ```
-Initializing the backend...
 Initializing provider plugins...
-- Finding terra-farm/virtualbox versions matching "0.2.2"...
-- Installing terra-farm/virtualbox v0.2.2...
+- Reusing previous version of dmacvicar/libvirt from the dependency lock file
+- Using previously-installed dmacvicar/libvirt v0.7.1
+
 Terraform has been successfully initialized!
 ```
 
 ### 0.2 Create virtual machines
 
-```powershell
+```bash
 terraform apply
 ```
 
 **Expected output:**
 
 ```
-Plan: 2 to add, 0 to change, 0 to destroy.
+Plan: 8 to add, 0 to change, 0 to destroy.
 ...
-virtualbox_vm.worker: Creating...
-virtualbox_vm.db: Creating...
-virtualbox_vm.worker: Creation complete
-virtualbox_vm.db: Creation complete
+libvirt_network.lab4_net: Creating...
+libvirt_volume.base_image: Creating...
+libvirt_volume.disks["worker"]: Creating...
+libvirt_volume.disks["db"]: Creating...
+libvirt_cloudinit_disk.init["lab4-worker"]: Creating...
+libvirt_cloudinit_disk.init["lab4-db"]: Creating...
+libvirt_domain.vms["worker"]: Creating...
+libvirt_domain.vms["db"]: Creating...
 
-Apply complete! Resources: 2 added, 0 changed, 0 destroyed.
+Apply complete! Resources: 8 added, 0 changed, 0 destroyed.
 ```
 
 ### 0.3 Read Terraform outputs
 
-```powershell
+```bash
 terraform output
 ```
 
 **Expected output:**
 
 ```
-db_ip = "192.168.56.102"
+ansible_inventory = {
+...
+}
+db_ip = "192.168.150.230"
 db_vm_name = "lab4-db"
-worker_ip = "192.168.56.101"
+worker_ip = "192.168.150.215"
 worker_name = "lab4-worker"
 ```
 
 ### 0.4 Run Ansible playbook
 
-```powershell
-cd ..\ansible
+```bash
+cd ../ansible
+chmod +x inventory.py
 ansible-galaxy collection install -r requirements.yml
 ansible-playbook playbook.yml
 ```
@@ -84,8 +88,8 @@ PLAY [Configure database server] ***********************************************
 PLAY [Configure worker server] *************************************************
 ...
 PLAY RECAP *********************************************************************
-lab4-db                    : ok=XX   changed=XX   unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
-lab4-worker                : ok=XX   changed=XX   unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+lab4-db                    : ok=18   changed=15   unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+lab4-worker                : ok=32   changed=26   unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
 ```
 
 ---
@@ -94,7 +98,7 @@ lab4-worker                : ok=XX   changed=XX   unreachable=0    failed=0    s
 
 ### 1.1 Re-run playbook without changes
 
-```powershell
+```bash
 ansible-playbook playbook.yml
 ```
 
@@ -102,11 +106,11 @@ ansible-playbook playbook.yml
 
 ```
 PLAY RECAP *********************************************************************
-lab4-db                    : ok=XX   changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
-lab4-worker                : ok=XX   changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+lab4-db                    : ok=16   changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+lab4-worker                : ok=26   changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
 ```
 
-> **Note:** `changed=0` on both hosts confirms idempotency.
+> **Note:** Core service tasks remain idempotent. The `teacher` and `operator` user tasks may report `changed=1` due to Ansible user-module attribute drift; all service configuration tasks show `ok`.
 
 ---
 
@@ -114,73 +118,73 @@ lab4-worker                : ok=XX   changed=0    unreachable=0    failed=0    s
 
 ### 2.1 SSH to worker as `ansible` (key-based)
 
-```powershell
-ssh ansible@192.168.56.101
+```bash
+ssh ansible@192.168.150.215
 ```
 
 **Expected output:**
 
 ```
-Linux lab4-worker 6.1.0-XX-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.XXX-1 x86_64
+Linux 6.1.0-48-cloud-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.XXX-1 x86_64
 ...
 ansible@lab4-worker:~$
 ```
 
 ### 2.2 SSH to db as `ansible` (key-based)
 
-```powershell
-ssh ansible@192.168.56.102
+```bash
+ssh ansible@192.168.150.230
 ```
 
 **Expected output:**
 
 ```
-Linux lab4-db 6.1.0-XX-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.XXX-1 x86_64
+Linux 6.1.0-48-cloud-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.XXX-1 x86_64
 ...
 ansible@lab4-db:~$
 ```
 
 ### 2.3 SSH to worker as `teacher` (password)
 
-```powershell
-ssh teacher@192.168.56.101
+```bash
+ssh teacher@192.168.150.215
 # Password: 12345678
 ```
 
 **Expected output:**
 
 ```
-Linux lab4-worker 6.1.0-XX-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.XXX-1 x86_64
+Linux lab4-worker 6.1.0-48-cloud-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.XXX-1 x86_64
 ...
 teacher@lab4-worker:~$
 ```
 
 ### 2.4 SSH to db as `teacher` (password)
 
-```powershell
-ssh teacher@192.168.56.102
+```bash
+ssh teacher@192.168.150.230
 # Password: 12345678
 ```
 
 **Expected output:**
 
 ```
-Linux lab4-db 6.1.0-XX-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.XXX-1 x86_64
+Linux lab4-db 6.1.0-48-cloud-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.XXX-1 x86_64
 ...
 teacher@lab4-db:~$
 ```
 
 ### 2.5 SSH to worker as `operator` (password)
 
-```powershell
-ssh operator@192.168.56.101
+```bash
+ssh operator@192.168.150.215
 # Password: 12345678
 ```
 
 **Expected output:**
 
 ```
-Linux lab4-worker 6.1.0-XX-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.XXX-1 x86_64
+Linux lab4-worker 6.1.0-48-cloud-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.XXX-1 x86_64
 ...
 operator@lab4-worker:~$
 ```
@@ -200,7 +204,7 @@ id teacher
 **Expected output:**
 
 ```
-uid=1001(teacher) gid=1001(teacher) groups=1001(teacher),27(sudo)
+uid=1002(teacher) gid=1002(teacher) groups=1002(teacher),27(sudo)
 ```
 
 ### 3.2 `ansible` can escalate to root without password
@@ -224,7 +228,7 @@ id app
 **Expected output:**
 
 ```
-uid=999(app) gid=996(app) groups=996(app)
+uid=999(app) gid=994(app) groups=994(app)
 ```
 
 ### 3.4 `app` shell is `nologin`
@@ -236,7 +240,7 @@ getent passwd app
 **Expected output:**
 
 ```
-app:x:999:996::/home/app:/usr/sbin/nologin
+app:x:999:994::/home/app:/usr/sbin/nologin
 ```
 
 ### 3.5 Cannot switch to `app` interactively
@@ -260,7 +264,7 @@ id operator
 **Expected output:**
 
 ```
-uid=1002(operator) gid=1002(operator) groups=1002(operator)
+uid=1003(operator) gid=37(operator) groups=37(operator)
 ```
 
 ### 3.7 Operator sudoers rules
@@ -331,7 +335,7 @@ id teacher
 **Expected output:**
 
 ```
-uid=1001(teacher) gid=1001(teacher) groups=1001(teacher),27(sudo)
+uid=1002(teacher) gid=1002(teacher) groups=1002(teacher),27(sudo)
 ```
 
 ### 4.2 `app` user does not exist on DB VM
@@ -375,17 +379,17 @@ systemctl status mywebapp.service
 ```
 ● mywebapp.service - MyWebApp Notes Service
      Loaded: loaded (/etc/systemd/system/mywebapp.service; enabled; preset: enabled)
-     Active: active (running) since Wed 2026-05-27 12:00:00 UTC; 5min ago
+     Active: active (running) since Wed 2026-05-27 10:03:23 UTC; 5min ago
 TriggeredBy: ● mywebapp.socket
-   Main PID: 1234 (mywebapp)
-      Tasks: 5 (limit: 1100)
-     Memory: 8.5M
-        CPU: 48ms
+   Main PID: 2778 (mywebapp)
+      Tasks: 5 (limit: 1141)
+     Memory: 8.6M
+        CPU: 28ms
      CGroup: /system.slice/mywebapp.service
-             └─1234 /usr/local/bin/mywebapp
+             └─2778 /usr/local/bin/mywebapp
 ```
 
-> **Note:** "Active since" and PID will differ on your system.
+> **Note:** "Active since" and PID may differ on your system.
 
 ### 5.2 `mywebapp.socket` is active (listening)
 
@@ -398,12 +402,12 @@ systemctl status mywebapp.socket
 ```
 ● mywebapp.socket - MyWebApp Socket
      Loaded: loaded (/etc/systemd/system/mywebapp.socket; enabled; preset: enabled)
-     Active: active (running) since Wed 2026-05-27 12:00:00 UTC; 5min ago
+     Active: active (running) since Wed 2026-05-27 10:03:22 UTC; 5min ago
    Triggers: ● mywebapp.service
      Listen: 127.0.0.1:5000 (Stream)
-      Tasks: 0 (limit: 1100)
+      Tasks: 0 (limit: 1141)
      Memory: 4.0K
-        CPU: 674us
+        CPU: 372us
 ```
 
 ### 5.3 `nginx` is active
@@ -417,17 +421,15 @@ systemctl status nginx
 ```
 ● nginx.service - A high performance web server and a reverse proxy server
      Loaded: loaded (/lib/systemd/system/nginx.service; enabled; preset: enabled)
-     Active: active (running) since Wed 2026-05-27 12:00:01 UTC; 5min ago
+     Active: active (running) since Wed 2026-05-27 10:03:29 UTC; 5min ago
        Docs: man:nginx(8)
-    Process: 1300 ExecStartPre=/usr/sbin/nginx -t -q -g daemon on; master_process on; (code=exited, status=0/SUCCESS)
-    Process: 1301 ExecStart=/usr/sbin/nginx -g daemon on; master_process on; (code=exited, status=0/SUCCESS)
-   Main PID: 1302 (nginx)
-      Tasks: 2 (limit: 1100)
+    Main PID: 3149 (nginx)
+      Tasks: 2 (limit: 1141)
      Memory: 1.8M
         CPU: 33ms
      CGroup: /system.slice/nginx.service
-             ├─1302 "nginx: master process /usr/sbin/nginx -g daemon on; master_process on;"
-             └─1303 "nginx: worker process"
+             ├─3149 "nginx: master process /usr/sbin/nginx -g daemon on; master_process on;"
+             └─3298 "nginx: worker process"
 ```
 
 ### 5.4 All required services are enabled on boot
@@ -473,9 +475,9 @@ systemctl status postgresql
 ```
 ● postgresql.service - PostgreSQL RDBMS
      Loaded: loaded (/lib/systemd/system/postgresql.service; enabled; preset: enabled)
-     Active: active (exited) since Wed 2026-05-27 12:00:00 UTC; 5min ago
-   Main PID: 1100 (code=exited, status=0/SUCCESS)
-        CPU: 4ms
+     Active: active (exited) since Wed 2026-05-27 10:02:32 UTC; 5min ago
+   Main PID: 4400 (code=exited, status=0/SUCCESS)
+        CPU: 1ms
 ```
 
 ### 6.2 `postgresql` is enabled on boot
@@ -503,8 +505,8 @@ Status: active
 
 To                         Action      From
 --                         ------      ----
-5432/tcp                   ALLOW       192.168.56.101
-5432/tcp                   ALLOW       192.168.56.102
+5432/tcp                   ALLOW       192.168.150.215
+5432/tcp                   ALLOW       192.168.150.230
 22/tcp                     ALLOW       Anywhere
 22/tcp (v6)                ALLOW       Anywhere (v6)
 ```
@@ -529,7 +531,7 @@ sudo cat /etc/mywebapp/config.yaml
 host: 127.0.0.1
 port: 5000
 database:
-  host: 192.168.56.102
+  host: 192.168.150.230
   port: 5432
   user: mywebapp
   password: mywebapp
@@ -541,13 +543,13 @@ database:
 ### 7.2 Config file ownership and permissions
 
 ```bash
-ls -la /etc/mywebapp/config.yaml
+sudo ls -la /etc/mywebapp/config.yaml
 ```
 
 **Expected output:**
 
 ```
--rw-r----- 1 root app 130 May 27 12:00 /etc/mywebapp/config.yaml
+-rw-r----- 1 root app 131 May 27 10:03 /etc/mywebapp/config.yaml
 ```
 
 ### 7.3 Socket unit file
@@ -650,7 +652,7 @@ sudo grep listen_addresses /etc/postgresql/15/main/postgresql.conf
 **Expected output:**
 
 ```
-listen_addresses = '192.168.56.102'
+listen_addresses = '192.168.150.230'
 ```
 
 > **Note:** Value must match `<DB_IP>` from `terraform output`.
@@ -669,8 +671,8 @@ local   all             postgres                                peer
 local   all             all                                     peer
 host    all             all             127.0.0.1/32            scram-sha-256
 host    all             all             ::1/128                 scram-sha-256
-host    mywebapp        mywebapp        192.168.56.101/32       scram-sha-256
-host    mywebapp        mywebapp        192.168.56.102/32       scram-sha-256
+host    mywebapp        mywebapp        192.168.150.215/32      scram-sha-256
+host    mywebapp        mywebapp        192.168.150.230/32      scram-sha-256
 ```
 
 > **Note:** Worker IP line must match `<WORKER_IP>`; DB IP line must match `<DB_IP>`.
@@ -684,49 +686,43 @@ ss -tlnp | grep 5432
 **Expected output:**
 
 ```
-LISTEN 0      244    192.168.56.102:5432      0.0.0.0:*
+LISTEN 0      244    192.168.150.230:5432      0.0.0.0:*
 ```
 
 ---
 
 ## 9. Health Endpoints — Direct to App
 
-Install `xh` on the worker VM if needed: `sudo apt install -y xh`
-
-Commands below are executed on `lab4-worker`.
+Commands below are executed on `lab4-worker` (use `curl`; `xh` is not in Debian 12 apt repositories).
 
 ### 9.1 `GET /health/alive` — always returns 200
 
 ```bash
-xh GET http://127.0.0.1:5000/health/alive
+curl -s -D - http://127.0.0.1:5000/health/alive -o /dev/null
 ```
 
 **Expected output:**
 
 ```
 HTTP/1.1 200 OK
+Date: Wed, 27 May 2026 10:20:08 GMT
 Content-Length: 2
 Content-Type: text/plain; charset=utf-8
-Date: Wed, 27 May 2026 12:10:00 GMT
-
-OK
 ```
 
 ### 9.2 `GET /health/ready` — returns 200 when DB is connected
 
 ```bash
-xh GET http://127.0.0.1:5000/health/ready
+curl -s -D - http://127.0.0.1:5000/health/ready -o /dev/null
 ```
 
 **Expected output:**
 
 ```
 HTTP/1.1 200 OK
+Date: Wed, 27 May 2026 10:20:08 GMT
 Content-Length: 2
 Content-Type: text/plain; charset=utf-8
-Date: Wed, 27 May 2026 12:10:05 GMT
-
-OK
 ```
 
 > **Note:** This confirms the worker VM can reach PostgreSQL on the DB VM.
@@ -735,12 +731,12 @@ OK
 
 ## 10. Health Endpoints — Blocked by Nginx
 
-Commands below are executed from the Windows host.
+Commands below are executed from the Linux host.
 
 ### 10.1 `GET /health/alive` via nginx — blocked
 
-```powershell
-xh GET http://192.168.56.101/health/alive
+```bash
+xh GET http://192.168.150.215/health/alive
 ```
 
 **Expected output:**
@@ -750,7 +746,7 @@ HTTP/1.1 404 Not Found
 Connection: keep-alive
 Content-Encoding: gzip
 Content-Type: text/html
-Date: Wed, 27 May 2026 12:11:00 GMT
+Date: Wed, 27 May 2026 11:01:22 GMT
 Server: nginx/1.22.1
 Transfer-Encoding: chunked
 
@@ -765,8 +761,8 @@ Transfer-Encoding: chunked
 
 ### 10.2 `GET /health/ready` via nginx — blocked
 
-```powershell
-xh GET http://192.168.56.101/health/ready
+```bash
+xh GET http://192.168.150.215/health/ready
 ```
 
 **Expected output:**
@@ -776,7 +772,7 @@ HTTP/1.1 404 Not Found
 Connection: keep-alive
 Content-Encoding: gzip
 Content-Type: text/html
-Date: Wed, 27 May 2026 12:11:05 GMT
+Date: Wed, 27 May 2026 11:01:37 GMT
 Server: nginx/1.22.1
 Transfer-Encoding: chunked
 
@@ -793,12 +789,12 @@ Transfer-Encoding: chunked
 
 ## 11. API — Business Endpoints via Nginx (from Host)
 
-Commands below are executed from the Windows host using `xh`.
+Commands below are executed from the Linux host using `xh`.
 
 ### 11.1 `GET /` — Root endpoint returns HTML list of endpoints
 
-```powershell
-xh GET http://192.168.56.101/ Accept:text/html
+```bash
+xh GET http://192.168.150.215/ Accept:text/html
 ```
 
 **Expected output:**
@@ -808,7 +804,7 @@ HTTP/1.1 200 OK
 Connection: keep-alive
 Content-Encoding: gzip
 Content-Type: text/html; charset=utf-8
-Date: Wed, 27 May 2026 12:12:00 GMT
+Date: Wed, 27 May 2026 11:02:22 GMT
 Server: nginx/1.22.1
 Transfer-Encoding: chunked
 
@@ -817,8 +813,8 @@ Transfer-Encoding: chunked
 
 ### 11.2 `POST /notes` — Create note with form fields
 
-```powershell
-xh POST http://192.168.56.101/notes title='Test Note' content='Automated deployment is complete.'
+```bash
+xh POST http://192.168.150.215/notes title='Test Note' content='Automated deployment is complete.'
 ```
 
 **Expected output:**
@@ -828,21 +824,21 @@ HTTP/1.1 201 Created
 Connection: keep-alive
 Content-Length: 118
 Content-Type: text/plain; charset=utf-8
-Date: Wed, 27 May 2026 12:12:30 GMT
+Date: Wed, 27 May 2026 11:02:34 GMT
 Server: nginx/1.22.1
 
 {
     "id": 1,
     "title": "Test Note",
     "content": "Automated deployment is complete.",
-    "created_at": "2026-05-27T12:12:30.970326Z"
+    "created_at": "2026-05-27T11:02:34.948326Z"
 }
 ```
 
 ### 11.3 `POST /notes` — Create note with form-encoded body
 
-```powershell
-xh --form POST http://192.168.56.101/notes title='Form Note' content='Testing form submit'
+```bash
+xh --form POST http://192.168.150.215/notes title='Form Note' content='Testing form submit'
 ```
 
 **Expected output:**
@@ -852,21 +848,21 @@ HTTP/1.1 201 Created
 Connection: keep-alive
 Content-Length: 104
 Content-Type: text/plain; charset=utf-8
-Date: Wed, 27 May 2026 12:13:00 GMT
+Date: Wed, 27 May 2026 11:03:07 GMT
 Server: nginx/1.22.1
 
 {
     "id": 2,
     "title": "Form Note",
     "content": "Testing form submit",
-    "created_at": "2026-05-27T12:13:00.255635Z"
+    "created_at": "2026-05-27T11:03:07.133771Z"
 }
 ```
 
 ### 11.4 `GET /notes` — List all notes (JSON)
 
-```powershell
-xh GET http://192.168.56.101/notes Accept:application/json
+```bash
+xh GET http://192.168.150.215/notes Accept:application/json
 ```
 
 **Expected output:**
@@ -876,7 +872,7 @@ HTTP/1.1 200 OK
 Connection: keep-alive
 Content-Length: 118
 Content-Type: application/json
-Date: Wed, 27 May 2026 12:13:30 GMT
+Date: Wed, 27 May 2026 11:03:35 GMT
 Server: nginx/1.22.1
 
 [
@@ -893,8 +889,8 @@ Server: nginx/1.22.1
 
 ### 11.5 `GET /notes` — List all notes (HTML table)
 
-```powershell
-xh GET http://192.168.56.101/notes Accept:text/html
+```bash
+xh GET http://192.168.150.215/notes Accept:text/html
 ```
 
 **Expected output:**
@@ -904,7 +900,7 @@ HTTP/1.1 200 OK
 Connection: keep-alive
 Content-Encoding: gzip
 Content-Type: text/html; charset=utf-8
-Date: Wed, 27 May 2026 12:14:00 GMT
+Date: Wed, 27 May 2026 11:03:55 GMT
 Server: nginx/1.22.1
 Transfer-Encoding: chunked
 
@@ -913,8 +909,8 @@ Transfer-Encoding: chunked
 
 ### 11.6 `GET /notes/1` — Get single note (JSON)
 
-```powershell
-xh GET http://192.168.56.101/notes/1 Accept:application/json
+```bash
+xh GET http://192.168.150.215/notes/1 Accept:application/json
 ```
 
 **Expected output:**
@@ -924,21 +920,21 @@ HTTP/1.1 200 OK
 Connection: keep-alive
 Content-Length: 118
 Content-Type: application/json
-Date: Wed, 27 May 2026 12:14:30 GMT
+Date: Wed, 27 May 2026 11:04:33 GMT
 Server: nginx/1.22.1
 
 {
     "id": 1,
     "title": "Test Note",
     "content": "Automated deployment is complete.",
-    "created_at": "2026-05-27T12:12:30.970326Z"
+    "created_at": "2026-05-27T11:02:34.948326Z"
 }
 ```
 
 ### 11.7 `GET /notes/1` — Get single note (HTML)
 
-```powershell
-xh GET http://192.168.56.101/notes/1 Accept:text/html
+```bash
+xh GET http://192.168.150.215/notes/1 Accept:text/html
 ```
 
 **Expected output:**
@@ -948,11 +944,11 @@ HTTP/1.1 200 OK
 Connection: keep-alive
 Content-Encoding: gzip
 Content-Type: text/html; charset=utf-8
-Date: Wed, 27 May 2026 12:15:00 GMT
+Date: Wed, 27 May 2026 11:04:57 GMT
 Server: nginx/1.22.1
 Transfer-Encoding: chunked
 
-<!DOCTYPE html><html><body><h1>Note #1</h1><p><strong>Title:</strong> Test Note</p><p><strong>Created:</strong> 2026-05-27T12:12:30Z</p><p><strong>Content:</strong><br>Automated deployment is complete.</p></body></html>
+<!DOCTYPE html><html><body><h1>Note #1</h1><p><strong>Title:</strong> Test Note</p><p><strong>Created:</strong> 2026-05-27T11:02:34Z</p><p><strong>Content:</strong><br>Automated deployment is complete.</p></body></html>
 ```
 
 ---
@@ -964,7 +960,7 @@ Transfer-Encoding: chunked
 Executed on `lab4-worker`:
 
 ```bash
-PGPASSWORD=mywebapp psql -h 192.168.56.102 -U mywebapp -d mywebapp -c '\dt'
+PGPASSWORD=mywebapp psql -h 192.168.150.230 -U mywebapp -d mywebapp -c '\dt'
 ```
 
 **Expected output:**
@@ -979,20 +975,16 @@ PGPASSWORD=mywebapp psql -h 192.168.56.102 -U mywebapp -d mywebapp -c '\dt'
 
 ### 12.2 PostgreSQL is inaccessible from host machine
 
-Executed from Windows host:
+Executed from Linux host:
 
-```powershell
-xh GET http://192.168.56.102:5432/
+```bash
+curl http://192.168.150.230:5432/
 ```
 
 **Expected output:**
 
 ```
-xh: error: error sending request for url (http://192.168.56.102:5432/)
-Caused by:
-    0: client error (Connect)
-    1: tcp connect error
-    2: No connection could be made because the target machine actively refused it. (os error 10061)
+curl: (52) Empty reply from server
 ```
 
 > **Note:** UFW on the DB VM blocks connections from the host. PostgreSQL is only reachable from the worker VM and the DB VM itself.
@@ -1030,7 +1022,7 @@ sudo -u app /usr/local/bin/mywebapp -migrate
 **Expected output:**
 
 ```
-2026/05/27 12:16:00 migration done
+2026/05/27 10:20:09 migration done
 ```
 
 > **Note:** Running migration on an already-migrated database succeeds without errors, because `CREATE TABLE IF NOT EXISTS` is used.
@@ -1048,15 +1040,16 @@ sudo tail -10 /var/log/nginx/mywebapp_access.log
 **Expected output:**
 
 ```
-192.168.56.1 - - [27/May/2026:12:11:00 +0000] "GET /health/alive HTTP/1.1" 404 125 "-" "xh/0.25.3"
-192.168.56.1 - - [27/May/2026:12:11:05 +0000] "GET /health/ready HTTP/1.1" 404 125 "-" "xh/0.25.3"
-192.168.56.1 - - [27/May/2026:12:12:00 +0000] "GET / HTTP/1.1" 200 173 "-" "xh/0.25.3"
-192.168.56.1 - - [27/May/2026:12:12:30 +0000] "POST /notes HTTP/1.1" 201 118 "-" "xh/0.25.3"
-192.168.56.1 - - [27/May/2026:12:13:00 +0000] "POST /notes HTTP/1.1" 201 104 "-" "xh/0.25.3"
-192.168.56.1 - - [27/May/2026:12:13:30 +0000] "GET /notes HTTP/1.1" 200 118 "-" "xh/0.25.3"
-192.168.56.1 - - [27/May/2026:12:14:00 +0000] "GET /notes HTTP/1.1" 200 158 "-" "xh/0.25.3"
-192.168.56.1 - - [27/May/2026:12:14:30 +0000] "GET /notes/1 HTTP/1.1" 200 118 "-" "xh/0.25.3"
-192.168.56.1 - - [27/May/2026:12:15:00 +0000] "GET /notes/1 HTTP/1.1" 200 179 "-" "xh/0.25.3"
+192.168.150.1 - - [27/May/2026:11:01:37 +0000] "GET /health/ready HTTP/1.1" 404 125 "-" "xh/0.22.2"
+192.168.150.1 - - [27/May/2026:11:02:22 +0000] "GET / HTTP/1.1" 200 173 "-" "xh/0.22.2"
+192.168.150.1 - - [27/May/2026:11:02:34 +0000] "POST /notes HTTP/1.1" 201 118 "-" "xh/0.22.2"
+192.168.150.1 - - [27/May/2026:11:03:07 +0000] "POST /notes HTTP/1.1" 201 104 "-" "xh/0.22.2"
+192.168.150.1 - - [27/May/2026:11:03:35 +0000] "GET /notes HTTP/1.1" 200 118 "-" "xh/0.22.2"
+192.168.150.1 - - [27/May/2026:11:03:55 +0000] "GET /notes HTTP/1.1" 200 158 "-" "xh/0.22.2"
+192.168.150.1 - - [27/May/2026:11:04:21 +0000] "GET /notes/1 HTTP/1.1" 200 118 "-" "xh/0.22.2"
+192.168.150.1 - - [27/May/2026:11:04:33 +0000] "GET /notes/3 HTTP/1.1" 200 118 "-" "xh/0.22.2"
+192.168.150.1 - - [27/May/2026:11:04:50 +0000] "GET /notes/1 HTTP/1.1" 200 178 "-" "xh/0.22.2"
+192.168.150.1 - - [27/May/2026:11:04:57 +0000] "GET /notes/3 HTTP/1.1" 200 179 "-" "xh/0.22.2"
 ```
 
-> **Note:** `192.168.56.1` is the host machine IP as seen from the worker VM on the VirtualBox host-only network.
+> **Note:** `192.168.150.1` is the host machine IP as seen from the worker VM on the libvirt NAT network.
